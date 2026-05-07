@@ -1,0 +1,27 @@
+{
+  "metadata": {
+    "version": "1.0",
+    "alpha": 1.0,
+    "beta": 2.0,
+    "epsilon": 0.001,
+    "rho": 0.1,
+    "seed": 42
+  },
+  "pheromones": {
+    "L1:constraint_first": 11.1555891166,
+    "L1:people_first": 1.4031560623500001,
+    "L1:preference_first": 11.5491609601,
+    "L2:participant_wise": 21.072297432350002,
+    "L2:day_wise": 1.5683650596000003,
+    "L2:mixed_normalization": 1.4672436470999999,
+    "L3:free_slot_computation": 19.794740684349996,
+    "L3:candidate_slot_enumeration": 2.7929581148499993,
+    "L3:progressive_elimination": 1.5202073398500002,
+    "L4:earliest_valid": 7.561423624600001,
+    "L4:preference_priority": 9.230691272600001,
+    "L4:conservative_selection": 7.315791241850001,
+    "L5:direct_output": 1.1755612701,
+    "L5:one_step_self_check": 13.467325361600002,
+    "L5:format_check_output": 9.46501950735
+  }
+}

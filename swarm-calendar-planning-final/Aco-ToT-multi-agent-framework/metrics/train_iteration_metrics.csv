@@ -1,0 +1,11 @@
+iteration,epoch,epoch_iteration,task_id,best_agent_quality,mean_agent_quality,best_agent_path_score,correct_flag,cumulative_correct,cumulative_accuracy,cumulative_mean_quality
+1,1,1,calendar_scheduling_example_0,0.25,0.15625,0.01038777808862466,0,0,0.0,0.25
+2,1,2,calendar_scheduling_example_1,1.0,0.40625,0.010298080122434309,1,1,0.5,0.625
+3,1,3,calendar_scheduling_example_2,1.0,0.59375,0.03258013404590791,1,2,0.6666666666666666,0.75
+4,1,4,calendar_scheduling_example_3,0.25,0.1875,0.048939418060517235,0,2,0.5,0.625
+5,1,5,calendar_scheduling_example_4,0.25,0.25,0.046881958694171076,0,2,0.4,0.55
+6,1,6,calendar_scheduling_example_5,1.0,0.65625,0.0662486944820585,1,3,0.5,0.625
+7,1,7,calendar_scheduling_example_6,1.0,0.4375,0.06777863652350115,1,4,0.5714285714285714,0.6785714285714286
+8,1,8,calendar_scheduling_example_7,1.0,0.40625,0.1285626320711246,1,5,0.625,0.71875
+9,1,9,calendar_scheduling_example_8,0.25,0.25,0.08237605592286308,0,5,0.5555555555555556,0.6666666666666666
+10,1,10,calendar_scheduling_example_9,1.0,0.8125,0.07739466830343224,1,6,0.6,0.7
