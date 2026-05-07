@@ -101,11 +101,12 @@ Here is the proposed time: Monday, 10:30 - 11:00
 
 At each ToT level, the agent must choose one branch. If `aco=true`, the branch is sampled from an ACO probability distribution:
 
-```text
+<!--```text
 P(branch j at level i) =
 ((tau_ij + epsilon)^alpha * (eta_ij + epsilon)^beta)
 / sum over all branches k at that level
-```
+```-->
+<img width="305" height="72" alt="image" src="https://github.com/user-attachments/assets/4eb30c2c-1d30-4f82-bbac-82b85eaff5b0" />
 
 Where:
 
@@ -139,15 +140,17 @@ After an iteration finishes, pheromones are updated for the current task only.
 
 For each branch edge:
 
-```text
+<!--```text
 tau_ij <- (1 - rho) * tau_ij + sum_k Delta_ij^(k)
-```
+```-->
+<img width="281" height="72" alt="image" src="https://github.com/user-attachments/assets/63db9da3-ca65-46db-914f-768a080f0660" />
 
 with:
 
-```text
+<!--```text
 Delta_ij^(k) = Q_k if edge (i,j) is in agent k's path, else 0
-```
+```-->
+<img width="553" height="95" alt="image" src="https://github.com/user-attachments/assets/a21a8419-a99e-4764-a21c-256b2ef4a27b" />
 
 Where:
 
@@ -221,22 +224,6 @@ Important properties:
 - pheromone learning happens **within a task**, not across tasks
 - `aco=true` and `aco=false` use the same overall search budget (`n * T`)
 - this makes ACO vs non-ACO comparisons cleaner
-
-### Train mode (`mode=train`)
-
-Legacy workflow kept for compatibility.
-
-- runs the agents on dataset items
-- scores against `golden_plan`
-- updates a persistent pheromone file across tasks
-
-### Infer mode (`mode=infer`)
-
-Legacy workflow kept for compatibility.
-
-- loads a saved pheromone file
-- runs agents once per task
-- returns the best prediction using path score
 
 ## Quality Scoring using a Deterministic Verifier
 
