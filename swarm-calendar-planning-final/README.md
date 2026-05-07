@@ -284,7 +284,6 @@ This gives a clean tie-break signal for "earliest availability" style tasks.
 - `Aco-ToT-multi-agent-framework/`: main implementation
 - `data/`: input datasets and prediction outputs
 - `evaluation_script/`: evaluation utilities
-- `execution_script/`: wrapper script for running the workflows from the project root structure
 
 ## Main Code Files
 
@@ -326,9 +325,6 @@ Below is a short description of the files most relevant to the **current solve-m
 - `Aco-ToT-multi-agent-framework/infer_aco_tot_calendar.py`
   CLI entrypoint for the current solve workflow.
 
-- `execution_script/prepare_data_calendar.py`
-  Wrapper script for running solve mode from the project root structure.
-
 ### Scoring, storage, and logging
 
 - `Aco-ToT-multi-agent-framework/aco_tot/task_quality.py`
@@ -347,28 +343,6 @@ Below is a short description of the files most relevant to the **current solve-m
 
 - `Aco-ToT-multi-agent-framework/aco_tot/openrouter_resilience.py`
   Retry and provider-handling helpers for OpenRouter or OpenAI-compatible backends.
-
-## Legacy Code
-
-The following files belong to the **older training / inference workflow**. They are kept in the repository for compatibility and reference, but they are **not part of the current solve-mode experiments**.
-
-- `Aco-ToT-multi-agent-framework/aco_tot/quality.py`
-  Older quality-scoring utilities used in the legacy training workflow, including the optional LLM-based scorer.
-
-- `Aco-ToT-multi-agent-framework/aco_tot/plotting.py`
-  Plot helpers for training metrics from the older workflow.
-
-- `Aco-ToT-multi-agent-framework/plot_training_accuracy.py`
-  CLI script for plotting legacy training curves.
-
-- `Aco-ToT-multi-agent-framework/analyze_best_paths.py`
-  Post-hoc analysis script for path statistics from legacy training logs.
-
-- legacy `train` mode
-  Cross-task pheromone-learning workflow used before the current per-instance solve setup.
-
-- legacy `infer` mode
-  Inference workflow that loads a persisted pheromone file from the older training setup.
 
 ## Testing Workflow
 
