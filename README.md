@@ -1,374 +1,293 @@
-# Swarm Calendar Planning
+# Decentralized SLM Swarm Reasoning for Constrained Planning
 
-This project solves calendar scheduling tasks with a fixed 5-level Tree-of-Thought (ToT) workflow and an Ant Colony Optimization (ACO) branch-selection policy.
+## Paper
 
-At a high level, each task asks the model to find a meeting slot that satisfies:
+For the full academic write-up, see [Decentralized SLM Swarm Reasoning for Constrained Planning.pdf](./Decentralized%20SLM%20Swarm%20Reasoning%20for%20Constrained%20Planning.pdf).
 
-- participant availability
-- meeting duration
-- allowed day(s)
-- work-hour limits
-- optional soft preferences such as "earliest availability" or "avoid Tuesday after 14:00"
+This repository contains the implementation, evaluation assets, and final paper for an academic study on decentralized reasoning for constrained planning with Small Language Model (SLM) agents.
 
-The current recommended workflow is **per-instance solve mode**:
+## Overview
 
-- each task is solved independently
-- for each task, `n` agents run for `T` iterations
-- each agent follows one 5-step ToT path
-- if `aco=true`, local pheromones are updated across iterations for that single task
-- if `aco=false`, the same search budget is used but branch choices are random
-- the final answer is chosen from the **best trace in the last iteration**
+The scope of this project is exploratory and methodological. It investigates whether decentralized coordination principles from swarm intelligence can be combined with the semantic reasoning capabilities of Small Language Models (SLMs) to support collective problem solving in constrained planning tasks.
 
-## Project Idea
+Rather than attempting to replace centralized LLM-based reasoning systems outright, the project studies an alternative system design in which multiple smaller reasoning agents cooperate through decentralized coordination. This framing is especially relevant for settings where robustness, distributed reasoning, interpretability of intermediate reasoning steps, and iterative solution improvement matter.
 
-The project combines three ideas:
+The target task is calendar scheduling under hard constraints such as participant availability, working hours, duration, and allowed days, with optional soft preferences such as earliest-slot selection.
 
-1. **Tree-of-Thought (ToT)** gives a fixed reasoning structure instead of asking the model to jump directly to the final answer.
-2. **ACO** biases which branch is chosen at each ToT level, based on both heuristics and pheromone learned during the current task.
-3. **A deterministic verifier** creates quality scores for each prediction, by comparing it against the parsed task constraints, so candidate answers can be ranked.
+The project combines:
 
-The design goal is simple: generate multiple structured candidate solutions, score them reliably, and use ACO to gradually favor more promising reasoning paths within each task.
+- fixed-depth Tree-of-Thought (ToT) decomposition for structured reasoning;
+- Ant Colony Optimization (ACO) for path selection over reasoning branches;
+- a deterministic verifier for task-aware scoring and ranking of candidate solutions;
+- multi-agent iterative search over a shared task-local pheromone state.
 
-## The 5-Level ToT
+Conceptually, the system treats reasoning as a search problem over structured intermediate decisions rather than a single direct generation step.
 
-Each agent always moves through the same 5 reasoning levels. The difference between agents is which branch they choose at each level.
+![Main ACO-ToT workflow](./swarm-calendar-planning-final/diagrams/aco-tot-approach.png)
 
-### Level 1: Parse the task
+## Research Question
 
-Purpose: understand what must be scheduled.
+The central research question is whether decentralized multi-agent SLM reasoning can improve constrained planning performance by combining:
 
-Typical branches:
+- structured Tree-of-Thought decomposition for candidate-path exploration;
+- swarm-intelligence mechanisms for coordination and solution refinement without central control;
+- benchmark-based evaluation on a curated calendar scheduling subset of NaturalPlanner.
 
-- `constraint_first`: extract duration, day(s), work hours, and preferences first
-- `people_first`: identify participants first, then their constraints
-- `preference_first`: focus on special preferences first, then the rest
+More specifically, the study asks how much of the observed performance gain comes from structured multi-agent reasoning itself, and how much additional value is contributed by pheromone-guided adaptation through ACO.
 
-Intuition: before doing any scheduling, the model must understand the problem statement correctly.
+## Tech Stack
 
-### Level 2: Organize calendars
+| Component | Technology |
+|---|---|
+| Language | Python |
+| Agent Framework | LangGraph |
+| LLM Orchestration | LangChain |
+| Model Client | `langchain-openai` |
+| Model Backends | OpenAI-compatible APIs / OpenRouter / local compatible endpoints |
+| Data Format | JSON / JSONL |
+| Evaluation | Deterministic task-specific verifier and solve-rate evaluation |
 
-Purpose: convert raw schedule text into a usable internal view.
+## Method
 
-Typical branches:
+### Problem Formulation
 
-- `participant_wise`: build busy slots participant by participant
-- `day_wise`: organize busy times by day
-- `mixed_normalization`: normalize by day, then regroup by participant
-
-Intuition: the raw input is free text, so this level tries to structure the calendars before reasoning about free time.
-
-### Level 3: Generate feasible availability
-
-Purpose: find possible meeting windows.
-
-Typical branches:
-
-- `free_slot_computation`: compute free intervals and intersect them
-- `candidate_slot_enumeration`: list candidate windows and eliminate invalid ones
-- `progressive_elimination`: start from the full day and remove conflicts step by step
-
-Intuition: this is where the agent turns calendar text into candidate meeting slots.
-
-### Level 4: Apply preferences / selection policy
-
-Purpose: choose among valid candidates.
-
-Typical branches:
-
-- `earliest_valid`: prefer the earliest valid slot if requested
-- `preference_priority`: apply explicit soft preferences first
-- `conservative_selection`: choose a clearly safe slot with margin from nearby meetings
-
-Intuition: many tasks have several valid slots, so this level decides which one is best.
-
-### Level 5: Final answer and verification
-
-Purpose: produce the final answer in the required format.
-
-Typical branches:
-
-- `direct_output`: return the chosen slot directly
-- `one_step_self_check`: verify once, then return
-- `format_check_output`: verify day, time, duration, and final format
-
-Intuition: this final step converts the reasoning path into a single formatted prediction:
+Given a scheduling task, the system must output a meeting slot of the form:
 
 ```text
-Here is the proposed time: Monday, 10:30 - 11:00
+Monday, 10:30 - 11:00
 ```
 
-## ACO Branch Selection
+The proposed slot is valid only if it satisfies all hard constraints:
 
-At each ToT level, the agent must choose one branch. If `aco=true`, the branch is sampled from an ACO probability distribution:
+- all participants are available;
+- the duration is correct;
+- the slot lies within working hours;
+- the day belongs to the allowed planning horizon;
+- any hard preference constraints are respected.
 
-<!--```text
-P(branch j at level i) =
-((tau_ij + epsilon)^alpha * (eta_ij + epsilon)^beta)
-/ sum over all branches k at that level
-```-->
-<img width="305" height="72" alt="image" src="https://github.com/user-attachments/assets/4eb30c2c-1d30-4f82-bbac-82b85eaff5b0" />
+Soft preferences are then used to differentiate among multiple valid solutions.
+
+### Five-Level Tree-of-Thought
+
+Each agent traverses a fixed five-stage reasoning graph:
+
+1. Parse the task.
+2. Organize calendars.
+3. Generate feasible availability.
+4. Apply preferences / selection policy.
+5. Produce the final answer and verify formatting.
+
+Each stage contains multiple branch options, for example `constraint_first`, `day_wise`, `free_slot_computation`, or `earliest_valid`. Different agents explore different branch combinations, which creates path diversity across the swarm.
+
+![Five-level ToT diagram](./swarm-calendar-planning-final/diagrams/ToT-diagram.png)
+
+### ACO-Guided Branch Selection
+
+At each ToT level, the agent must choose one branch. When `aco=true`, branch selection is not uniform. Instead, the framework samples from an ACO probability distribution that combines learned pheromone strength with a hand-designed heuristic prior.
+
+<img width="305" height="72" alt="ACO branch selection formula" src="https://github.com/user-attachments/assets/4eb30c2c-1d30-4f82-bbac-82b85eaff5b0" />
 
 Where:
 
-- `tau_ij` = pheromone value for that branch edge
-- `eta_ij` = heuristic desirability score for that branch on the current task
-- `alpha` = how strongly pheromone matters
-- `beta` = how strongly the heuristic matters
-- `epsilon` = small smoothing constant
+- `tau_ij` is the pheromone value associated with branch `j` at level `i`;
+- `eta_ij` is the heuristic desirability of that branch for the current task;
+- `alpha` determines how strongly historical pheromone affects selection;
+- `beta` determines how strongly the heuristic prior affects selection;
+- `epsilon` is a smoothing constant that avoids degenerate zero-probability paths.
 
-### Heuristic desirability
+This design lets the system balance two signals:
 
-The heuristic is hand-designed from simple task features such as:
+- exploit branches that have produced strong traces earlier in the same task;
+- explore branches that are heuristically plausible for the task structure.
 
-- number of people
-- number of allowed days
-- duration
-- whether preferences exist
-- whether "earliest" is requested
+If `aco=false`, the same reasoning tree is traversed under the same search budget, but branch selection becomes uniform random sampling instead of pheromone-guided sampling.
 
-Example intuition:
+### Pheromone Update
 
-- multi-day tasks may favor `day_wise`
-- preference-heavy tasks may favor `preference_first`
-- earliest-request tasks may favor `earliest_valid`
+After each iteration, pheromones are updated for the current task only. Better-scoring reasoning traces deposit more pheromone on the branch edges they used, while evaporation prevents early choices from dominating indefinitely.
 
-If `aco=false`, the branch is chosen uniformly at random instead of using the formula above.
-
-## Pheromone Update Formula
-
-After an iteration finishes, pheromones are updated for the current task only.
-
-For each branch edge:
-
-<!--```text
-tau_ij <- (1 - rho) * tau_ij + sum_k Delta_ij^(k)
-```-->
-<img width="281" height="72" alt="image" src="https://github.com/user-attachments/assets/63db9da3-ca65-46db-914f-768a080f0660" />
+<img width="281" height="72" alt="Pheromone update formula" src="https://github.com/user-attachments/assets/63db9da3-ca65-46db-914f-768a080f0660" />
 
 with:
 
-<!--```text
-Delta_ij^(k) = Q_k if edge (i,j) is in agent k's path, else 0
-```-->
-<img width="553" height="95" alt="image" src="https://github.com/user-attachments/assets/a21a8419-a99e-4764-a21c-256b2ef4a27b" />
+<img width="553" height="95" alt="Pheromone deposit term" src="https://github.com/user-attachments/assets/a21a8419-a99e-4764-a21c-256b2ef4a27b" />
 
-Where:
-
-- `rho` = evaporation rate
-- `Q_k` = quality score of agent `k`
+This gives the swarm a task-local memory: higher-scoring reasoning traces increase the probability that similar paths are revisited later in the same task.
 
 Interpretation:
 
-- **evaporation** reduces older influence
-- **deposit** rewards branches used by better-scoring traces
+- `rho` is the evaporation rate, which reduces stale path influence;
+- `Q_k` is the quality score of agent `k`;
+- `Delta_ij^(k)` is non-zero only if agent `k` traversed edge `(i, j)`.
 
-In solve mode, these pheromones are **local to one task**. They are initialized fresh for that task, updated across iterations, and then discarded before the next task.
+In `solve` mode, pheromone state is local to a single task. It is initialized fresh, refined across iterations, and discarded before the next task. This keeps cross-task leakage out of the evaluation and makes ACO vs non-ACO comparisons cleaner.
 
-## How a Full Run Works
+### Deterministic Verifier
 
-Assume the full dataset has **1000 tasks**.
+Candidate answers are not scored by another model. They are scored by a deterministic task-quality module that parses the task, validates the candidate slot, measures soft-preference satisfaction, and produces a bounded score in `[0, 1]`.
 
-### Solve mode (`mode=solve`)
+The scoring rule is intentionally banded:
 
-This is the main workflow for current experiments.
+- hard-valid candidates are mapped to the range `0.5` to `1.0`, depending on soft-preference satisfaction;
+- hard-invalid candidates are mapped to the range `0.0` to `0.49`, based on the fraction of hard checks passed.
 
-Example commands:
+This enforces a strict separation between valid and invalid schedules and allows the system to rank candidates reliably during search. In practice, even a partially correct invalid answer cannot outrank a fully valid one.
 
-For Gemma, solve mode with ACO enabled:
+### End-to-End Workflow
 
-<pre>python infer_aco_tot_calendar.py <span style="color:red;"><strong>--mode</strong></span> solve <strong>--data_path</strong> ../data/calendar_scheduling_input.json <strong>--out_path</strong> ../data/calendar_scheduling_output_test_small.json <strong>--model</strong> google/gemma-3-4b-it <strong>--agents_per_task</strong> 8 <strong>--iterations_per_task</strong> 6 <strong>--alpha</strong> 1.0 <strong>--beta</strong> 2.0 <strong>--epsilon</strong> 0.001 <strong>--rho</strong> 0.1 <strong>--seed</strong> 42 <span style="color:red;"><strong>--aco</strong></span> true</pre>
+For each scheduling task:
 
-For Gemma, solve mode with ACO disabled:
+1. Extract the current task prompt and derive lightweight task features.
+2. Initialize a fresh task-local pheromone table.
+3. Run `n` agents for `T` iterations through the fixed ToT graph.
+4. Score each candidate with the deterministic verifier.
+5. Update pheromones if ACO is enabled.
+6. Return the best trace from the final iteration as the final prediction.
 
-<pre>python infer_aco_tot_calendar.py <span style="color:red;"><strong>--mode</strong></span> solve <strong>--data_path</strong> ../data/calendar_scheduling_input.json <strong>--out_path</strong> ../data/calendar_scheduling_output_test_small.json <strong>--model</strong> google/gemma-3-4b-it <strong>--agents_per_task</strong> 8 <strong>--iterations_per_task</strong> 6 <strong>--alpha</strong> 1.0 <strong>--beta</strong> 2.0 <strong>--epsilon</strong> 0.001 <strong>--rho</strong> 0.1 <strong>--seed</strong> 42 <span style="color:red;"><strong>--aco</strong></span> false</pre>
+The implementation therefore combines symbolic validation, probabilistic path selection, and language-model reasoning in a single loop.
 
-Argument summary:
+## Dataset
 
-- `--mode solve`: specifies the run mode (possible modes are **solve**, **train** and **infer**. We only use solve mode).
-- `--data_path`: input dataset JSON file containing the scheduling tasks.
-- `--out_path`: output JSON file where final predictions and run metadata are written.
-- `--model`: SLM used by the ToT agents to generate candidate schedules.
-- `--agents_per_task`: number of agents `n` launched per iteration for each task.
-- `--iterations_per_task`: number of local iterations `T` run for each task.
-- `--alpha`: pheromone importance in ACO branch selection.
-- `--beta`: heuristic importance in ACO branch selection.
-- `--epsilon`: small smoothing constant to avoid zero-probability branches.
-- `--rho`: pheromone evaporation rate.
-- `--seed`: random seed for reproducibility.
-- `--aco true|false`: enables pheromone-guided branch selection when `true`, or random ToT sampling when `false`.
+The experiments use the calendar scheduling subset of the NaturalPlanner benchmark. In the original benchmark, this subset contains `1,000` instances distributed evenly across `10` categories:
 
-Expected outputs:
+- `2-person` scheduling over `1` to `5` candidate days;
+- `3-, 4-, 5-, 6-, and 7-person` scheduling tasks, each defined over `1` day.
 
-- `data/calendar_scheduling_output.json`
-  Final prediction file for the dataset. Each item should contain the model prediction in `pred_5shot_pro` plus additional metadata.
-- `data/logs/solve_run_*.jsonl`
-  Per-task structured run log written during the solve run.
+For this study, the evaluation used a curated subset of `400` instances, constructed by taking the first `40` samples from each category. This preserves variation in both participant count and planning horizon while keeping the experimental cost manageable.
 
-For each task, the workflow logic is as below :
+The dataset is JSON-based and each item includes both generation-time and evaluation-time fields. The most relevant fields from Table 1 of the paper are:
 
-1. Task prompt (`prompt_5shot`) is loaded.
-2. A fresh local pheromone table is created for the task.
-3. For `T` iterations, following is repeated:
-   - `n` agents are launched
-   - each agent parallelly traverses the 5 ToT levels
-   - at each level, a branch is chosen using ACO (if `aco=true`) or randomly (if `aco=false`)
-   - a prediction is produced
-   - a quality score is calculated for the current prediction with the deterministic verifier
-   - if `aco=true`, local pheromones are updated using the agent quality scores
-4. After `T` iterations, the **highest quality prediction from the last iteration** is chosen.
-5. That prediction is saved as the final output for the task.
+| Field | Purpose |
+|---|---|
+| `num_people` | Number of participants who must attend the meeting |
+| `num_days` | Number of valid candidate days |
+| `duration` | Required meeting duration |
+| `prompt_5shot` | Few-shot prompt with solved examples plus the active task |
+| `golden_plan` | Ground-truth reference solution |
+| `prompt_0shot` | Zero-shot version of the active task for task-specific evaluation |
+| `pred_5shot_pro` | Prediction field retained from the original benchmark structure |
+| `pred_model` | Model identifier associated with the stored prediction metadata |
 
-Important properties:
+## Experimental Setup
 
-- tasks are independent of each other
-- pheromone learning happens **within a task**, not across tasks
-- `aco=true` and `aco=false` use the same overall search budget (`n * T`)
-- this makes ACO vs non-ACO comparisons cleaner
+- Benchmark: NaturalPlanner calendar scheduling subset, evaluated here on a curated 400-task split.
+- Comparative settings:
+  - single SLM baseline;
+  - multi-agent ToT without ACO;
+  - multi-agent ToT with ACO.
+- Repository focus: `solve` mode in `swarm-calendar-planning-final/Aco-ToT-multi-agent-framework/infer_aco_tot_calendar.py`.
+- Current implementation stack: Python, LangGraph, LangChain OpenAI-compatible clients, task-specific scoring, and JSONL run logging.
 
-## Quality Scoring using a Deterministic Verifier
+The framework is backend-flexible: it can run against OpenRouter, OpenAI-compatible endpoints, or local compatible servers, depending on `LLM_BASE_URL` and API key configuration.
 
-The deterministic verifier is utilized to verify and score the candidate outputs produced by the SLM agents.
+## Results and Findings
 
-It:
+### Overall Solve Rate
 
-- normalizes task text
-- parses participants, duration, work hours, and allowed days
-- parses busy intervals, including multi-day lines
-- parses hard and soft preferences
-- parses the candidate prediction
-- checks hard validity
-- computes soft-preference satisfaction
-- gives the candidate a deterministic score
+| Configuration | Solve Rate |
+|---|---:|
+| Single SLM baseline | 0.2475 |
+| Multi-agent ToT without ACO | 0.3950 |
+| Multi-agent ToT with ACO | 0.4000 |
 
-The score is always in the range **0 to 1**:
+Key takeaways from Sections 6.1 to 6.6 of the paper:
 
-- if the candidate is **hard-valid** (i.e passes all hard constraints), its score is in the range **0.5 to 1.0**
-- if the candidate is **hard-invalid** (i.e does not pass all hard constraints), its score is in the range **0.0 to 0.49**
+- The full ToT+ACO system achieved the best overall performance: `0.4000`.
+- Relative to the single-agent baseline, this is an absolute improvement of `15.25` percentage points.
+- Most of the gain came from structured multi-agent ToT reasoning itself: `0.2475 -> 0.3950`.
+- The incremental ACO gain over ToT-only was positive but small in the current setup: `0.3950 -> 0.4000`.
 
-This creates a strict separation between valid and invalid answers: even the best invalid answer scores below the worst valid answer.
+### Category-Level Behavior
 
-In simple terms, the scoring logic is:
+Category analysis shows that the decentralized search process is especially useful when multiple participant constraints must be jointly satisfied within a narrow horizon.
+
+Representative examples from the paper:
+
+- `3 people, 1 day`: `0.250 -> 0.550 -> 0.575`
+- `5 people, 1 day`: `0.175 -> 0.300 -> 0.525`
+- `6 people, 1 day`: `0.325 -> 0.525 -> 0.525`
+
+Interpretation:
+
+- ToT consistently improves robustness over direct one-shot generation.
+- The strongest effect appears in higher-constraint one-day scheduling tasks.
+- ACO helps in some categories, but the effect is not yet uniformly stable across all task types.
+
+### Interpretation of the Findings
+
+- The main empirical contribution is not merely "using more agents"; it is converting planning into structured multi-path reasoning with explicit intermediate states.
+- The deterministic verifier is critical because it turns open-ended model outputs into comparable search candidates.
+- ACO is methodologically meaningful because it adds reinforcement, local adaptation, and collective memory to reasoning search.
+- The present evidence supports the value of decentralized ToT reasoning strongly, while the independent ACO contribution remains promising rather than conclusively established.
+
+### Current Limitations
+
+- Results are based on a curated 400-task subset rather than the full benchmark.
+- Category-level comparisons use only 40 tasks per category.
+- The main reported results appear to come from single runs rather than repeated multi-seed studies.
+- The current search budget and reasoning-tree width may be too small for pheromone effects to fully emerge.
+- Solve rate is strict and useful, but it does not fully expose failure modes such as parsing error, preference violation, or format mismatch.
+
+## Conclusion
+
+This project provides initial empirical evidence that decentralized SLM-based agents can solve constrained planning tasks more effectively than a single-agent baseline when reasoning is decomposed into structured search stages.
+
+The clearest conclusion is that multi-agent Tree-of-Thought reasoning substantially improves calendar scheduling performance by reducing the fragility of one-shot generation. Ant Colony Optimization further improves the best observed result and introduces a principled swarm-intelligence mechanism for adaptive reasoning-path selection, but its standalone empirical effect requires larger-scale validation.
+
+From an AI engineering perspective, the project demonstrates an end-to-end research workflow: problem formalization, agentic system design, algorithmic adaptation, deterministic evaluation, category-wise analysis, and explicit acknowledgment of experimental limits.
+
+## Repository Map
 
 ```text
-If hard-valid:
-score = 0.5 + 0.5 x soft_ratio
-
-If hard-invalid:
-hard_ratio = hard_checks_passed / hard_checks_total
-score = 0.49 x hard_ratio
+swarm-calendar-planning-final/
+|- Aco-ToT-multi-agent-framework/
+|  |- infer_aco_tot_calendar.py
+|  |- aco_tot/
+|  |  |- engine.py
+|  |  |- llm_nodes.py
+|  |  |- aco.py
+|  |  |- heuristics.py
+|  |  |- pheromone.py
+|  |  |- task_quality.py
+|  |  |- prompt_io.py
+|  |  |- run_logging.py
+|  |  `- types.py
+|  `- tests/
+|- data/
+|- evaluation_script/
+`- paper/
 ```
 
-Where:
+Core files:
 
-- `soft_ratio` is the fraction of satisfied soft preferences, so it lies between `0` and `1`
-- `hard_ratio` is the fraction of hard checks passed, so it also lies between `0` and `1`
+- `aco_tot/engine.py`: orchestration of per-task multi-agent search and scoring.
+- `aco_tot/llm_nodes.py`: LangGraph-based reasoning nodes and model invocation flow.
+- `aco_tot/aco.py`, `heuristics.py`, `pheromone.py`: ACO probability computation and updates.
+- `aco_tot/task_quality.py`: deterministic verifier for hard/soft constraint scoring.
+- `evaluation_script/evaluate_calendar_scheduling.py`: solve-rate evaluation against gold labels.
 
-This means:
+## Running the Framework
 
-- a valid candidate that satisfies all soft preferences gets a score close to `1.0`
-- a valid candidate that misses soft preferences still remains in the valid band, starting at `0.5`
-- an invalid candidate can receive partial credit if some hard checks are correct, but it can never outrank a valid one
+From `swarm-calendar-planning-final/Aco-ToT-multi-agent-framework`:
 
-A useful detail is `slot_rank`:
+```bash
+python infer_aco_tot_calendar.py --mode solve --data_path ../data/calendar_scheduling_input_curated.json --out_path ../data/calendar_scheduling_output_curated.json --model google/gemma-3-4b-it --agents_per_task 8 --iterations_per_task 6 --alpha 1.0 --beta 2.0 --epsilon 0.001 --rho 0.1 --seed 42 --aco true
+```
 
-- the verifier enumerates all hard-valid slots (i.e predictions which fulfill all hard constraints)
-- sorts them from earliest to latest
-- `slot_rank = 0` means the candidate is the earliest valid slot
+Minimal environment requirements:
 
-This gives a clean tie-break signal for "earliest availability" style tasks.
+- Python environment with project dependencies installed;
+- `OPENROUTER_API_KEY` or `OPENAI_API_KEY` if using a hosted backend;
+- optional `LLM_BASE_URL` for a local or alternate OpenAI-compatible endpoint.
 
-## Main Repository Structure
+## Why This Project Matters
 
-### Top-level folders
+This repository is not only a scheduling system. It is a compact research prototype for agentic planning under constraints, showing how LLM/SLM reasoning can be combined with:
 
-- `Aco-ToT-multi-agent-framework/`: main implementation
-- `data/`: input datasets and prediction outputs
-- `evaluation_script/`: evaluation utilities
+- decentralized multi-agent execution,
+- search over reasoning paths,
+- swarm-inspired coordination,
+- symbolic validation,
+- and benchmark-driven empirical analysis.
 
-## Main Code Files
-
-Below is a short description of the files most relevant to the **current solve-mode workflow**.
-
-### Core ACO / ToT logic
-
-- `Aco-ToT-multi-agent-framework/aco_tot/config.py`
-  Defines the fixed 5 ToT levels, branch names, prompts, and global defaults.
-
-- `Aco-ToT-multi-agent-framework/aco_tot/aco.py`
-  Computes ACO branch probabilities and samples a branch at each level.
-
-- `Aco-ToT-multi-agent-framework/aco_tot/heuristics.py`
-  Provides heuristic desirability values (`eta`) from task features.
-
-- `Aco-ToT-multi-agent-framework/aco_tot/pheromone.py`
-  Applies pheromone evaporation and deposit updates.
-
-### LLM execution and prompt flow
-
-- `Aco-ToT-multi-agent-framework/aco_tot/llm_nodes.py`
-  Builds the LangGraph execution graph. Each level node asks the model for one intermediate result, and the final node asks for the final meeting slot.
-
-- `Aco-ToT-multi-agent-framework/aco_tot/context_accumulator.py`
-  Builds the accumulated reasoning prompt passed from one ToT level to the next.
-
-- `Aco-ToT-multi-agent-framework/aco_tot/prompt_io.py`
-  Extracts the current task from few-shot prompts, builds simple task features, and canonicalizes final answers.
-
-### Solve-mode orchestration
-
-- `Aco-ToT-multi-agent-framework/aco_tot/engine.py`
-  Main orchestration file. It runs agents, handles solve mode, applies deterministic scoring, updates local pheromones, logs runs, and manages solve-mode checkpointing.
-
-- `Aco-ToT-multi-agent-framework/aco_tot/invoke.py`
-  Public API wrapper for invoking one task or dataset run from code.
-
-- `Aco-ToT-multi-agent-framework/infer_aco_tot_calendar.py`
-  CLI entrypoint for the current solve workflow.
-
-### Scoring, storage, and logging
-
-- `Aco-ToT-multi-agent-framework/aco_tot/task_quality.py`
-  Deterministic verifier used in solve mode. Parses task constraints and scores candidate predictions.
-
-- `Aco-ToT-multi-agent-framework/aco_tot/store.py`
-  Loads, initializes, and saves pheromone state files.
-
-- `Aco-ToT-multi-agent-framework/aco_tot/run_logging.py`
-  Writes structured JSONL logs for train, infer, and solve runs.
-
-- `Aco-ToT-multi-agent-framework/aco_tot/types.py`
-  Shared dataclasses for task features, traces, pheromone state, and run results.
-
-### Reliability and analysis helpers
-
-- `Aco-ToT-multi-agent-framework/aco_tot/openrouter_resilience.py`
-  Retry and provider-handling helpers for OpenRouter or OpenAI-compatible backends.
-
-## Testing Workflow
-
-For current project reporting, we have tested in following order :
-
-1. **Single-agent SLM baseline**
-   One model call, no ToT search, no ACO.
-
-2. **Multi-agent multi-iteration ToT only**
-   Solve mode with `aco=false`.
-
-3. **Multi-agent multi-iteration ACO + ToT**
-   Solve mode with `aco=true`.
-
-This isolates:
-
-- the gain from structured ToT search only (`1 -> 2`)
-- the extra gain from pheromone-guided search on top of ToT (`2 -> 3`)
-
-## Practical Takeaway
-
-The core idea of the repo is not "let one model solve the task directly."
-
-Instead, it is:
-
-- decompose reasoning into 5 fixed stages
-- explore several branch combinations
-- score the resulting candidates deterministically
-- and, when ACO is enabled, use local pheromone learning to bias later iterations toward more promising reasoning paths for the same task
+That combination is the main technical contribution of the project.
