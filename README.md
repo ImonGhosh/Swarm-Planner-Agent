@@ -2,7 +2,7 @@
 
 ## Paper
 
-For the full academic write-up, see [Decentralized SLM Swarm Reasoning for Constrained Planning.pdf](./decentralized_slm_swarm_reasoning_for_constrained_planning.pdf).
+For the full academic write-up, see [Decentralized SLM Swarm Reasoning for Constrained Planning.pdf](./decentralized_slm_swarm_planning.pdf).
 
 This repository contains the implementation, evaluation assets, and final paper for an academic study on decentralized reasoning for constrained planning with Small Language Model (SLM) agents.
 
