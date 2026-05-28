@@ -1,5 +1,9 @@
 # Decentralized SLM Swarm Reasoning for Constrained Planning
 
+[![Python](https://img.shields.io/badge/Python-3.12+-blue.svg)]()
+[![LangGraph](https://img.shields.io/badge/LangGraph-Agent%20Framework-green.svg)]()
+[![OpenAI](https://img.shields.io/badge/OpenAI-Compatible%20Backends-black.svg)]()
+
 ## Paper
 
 For the full academic write-up, see [Decentralized SLM Swarm Reasoning for Constrained Planning.pdf](./decentralized_slm_swarm_planning.pdf).
