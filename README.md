@@ -1,4 +1,4 @@
-# Decentralized SLM Swarm Reasoning for Constrained Planning
+# Decentralized Multi-Agent SLM Swarm Reasoning for Constrained Planning
 
 [![Python](https://img.shields.io/badge/Python-3.12+-blue.svg)]()
 [![LangGraph](https://img.shields.io/badge/LangGraph-Agent%20Framework-green.svg)]()
